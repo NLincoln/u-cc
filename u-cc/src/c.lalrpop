@@ -1,0 +1,56 @@
+use std::str::FromStr;
+use crate::ast::*;
+
+grammar;
+
+Comma<T>: Vec<T> = {
+    <v:(<T> ",")*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            let mut v = v;
+            v.push(e);
+            v
+        }
+    }
+};
+
+pub Program: Program = {
+  (FunctionDefinition)+ => Program {
+    functions: <>
+  }
+}
+
+FunctionDefinition: FunctionDefinition = {
+  <return_type:Type> <name:Ident> "(" <parameters:Comma<FunctionParameter>> ")" "{" <body:Statement*> "}" => {
+    FunctionDefinition {
+      return_type,
+      name,
+      parameters,
+      body
+    }
+  }
+}
+
+FunctionParameter: FunctionParameter = {
+  <ty:Type> <name:Ident> => FunctionParameter { ty, name }
+}
+
+Statement: Statement = {
+  "return" <Expr> ";" => Statement::Return(<>)
+}
+
+Expr: Expr = {
+  Num => Expr::Number(<>)
+}
+
+Type: Type = {
+  "int" => Type::Int
+}
+
+Ident: String = {
+  r"[a-zA-Z_][a-zA-Z0-9_]*" => <>.to_string()
+}
+
+Num: i32 = {
+  r"[0-9]+" => i32::from_str(<>).unwrap()
+};
