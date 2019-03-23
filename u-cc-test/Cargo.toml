@@ -6,3 +6,4 @@ edition = "2018"
 
 [dependencies]
 duct = "0.12"
+colored = "1.7"

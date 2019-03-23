@@ -36,7 +36,7 @@ fn compile_statement(compiler: &mut Compiler, stmt: &Statement) {
 fn compile_func(compiler: &mut Compiler, func: &FunctionDefinition) {
     let name = match func.name.as_str() {
         "main" => "_main".to_string(),
-        name => name.to_string()
+        name => name.to_string(),
     };
     compiler
         .gen_label(name)
