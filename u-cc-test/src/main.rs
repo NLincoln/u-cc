@@ -21,6 +21,16 @@ enum TestResult {
     WrongStatusCode { expected: i32, received: i32 },
 }
 
+#[cfg(target_os = "linux")]
+fn nasm_format() -> &'static str {
+    "elf64"
+}
+
+#[cfg(target_os = "macos")]
+fn nasm_format() -> &'static str {
+    "macho64"
+}
+
 impl TestCase {
     pub fn new(file_path: PathBuf) -> TestCase {
         TestCase { file_path }
@@ -72,7 +82,7 @@ impl TestCase {
         let cmd = duct::cmd!(
             "nasm",
             "-f",
-            "macho64",
+            nasm_format(),
             "-o",
             self.obj_file_path()?,
             self.asm_file_path()?,

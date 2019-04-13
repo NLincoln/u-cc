@@ -3,6 +3,7 @@ extern crate lalrpop_util;
 mod asm;
 mod ast;
 mod compiler;
+mod platform;
 lalrpop_mod!(pub c);
 
 use clap::{App, Arg};
@@ -25,7 +26,7 @@ fn main() {
     };
 
     let instructions = compiler::compile(&ast);
-    println!("global _main");
+    println!("global {}", platform::main_symbol());
     println!("section .text");
     for instruction in instructions.iter() {
         println!("{}", instruction);

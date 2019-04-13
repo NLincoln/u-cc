@@ -1,6 +1,6 @@
 use crate::asm::{Address, Instruction, Register::*};
 use crate::ast::{self, FunctionDefinition, Program, Statement};
-
+use crate::platform;
 struct Compiler {
     instructions: Vec<Instruction>,
 }
@@ -35,7 +35,7 @@ fn compile_statement(compiler: &mut Compiler, stmt: &Statement) {
 
 fn compile_func(compiler: &mut Compiler, func: &FunctionDefinition) {
     let name = match func.name.as_str() {
-        "main" => "_main".to_string(),
+        "main" => platform::main_symbol().to_string(),
         name => name.to_string(),
     };
     compiler
