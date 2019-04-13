@@ -27,6 +27,8 @@ fn compile_statement(compiler: &mut Compiler, stmt: &Statement) {
         Statement::Return(expr) => {
             let retval = match expr {
                 Expr::Number(val) => *val,
+                Expr::Ident(ident) => unimplemented!(),
+                Expr::FunctionCall(call) => unimplemented!(),
             };
             compiler.gen(Instruction::Mov(Eax.into(), Address::Immediate(retval)));
         }

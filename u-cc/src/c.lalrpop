@@ -40,7 +40,18 @@ Statement: Statement = {
 }
 
 Expr: Expr = {
-  Num => Expr::Number(<>)
+  Num => Expr::Number(<>),
+  Ident => Expr::Ident(<>),
+  FunctionCall => Expr::FunctionCall(<>)
+}
+
+FunctionCall: FunctionCall = {
+  <name:Ident> "(" <arguments:Comma<Expr>> ")" => {
+    FunctionCall {
+      name,
+      arguments
+    }
+  }
 }
 
 Type: Type = {

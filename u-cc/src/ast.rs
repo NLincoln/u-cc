@@ -30,4 +30,12 @@ pub enum Statement {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Number(i32),
+    Ident(String),
+    FunctionCall(FunctionCall),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FunctionCall {
+    pub name: String,
+    pub arguments: Vec<Expr>,
 }
