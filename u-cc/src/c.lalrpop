@@ -37,6 +37,7 @@ FunctionParameter: FunctionParameter = {
 
 Statement: Statement = {
   "return" <Expr> ";" => Statement::Return(<>),
+  <Expr> ";" => Statement::Expr(<>),
   <ty:Type> <name:Ident> "=" <value:Expr> ";" => Statement::VariableDefinition { ty, name, value },
 }
 

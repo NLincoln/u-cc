@@ -119,6 +119,13 @@ fn compile_expr(compiler: &mut Compiler, func_ctx: &mut FunctionCtx, expr: &Expr
                 .dword()
                 .into()
         }
+        Expr::Assignment { lhs, op, value } => {
+            assert_eq!(op.clone(), ast::AssignmentOp::Assign);
+            let value = compile_expr(compiler, func_ctx, value);
+            let lhs = compile_expr(compiler, func_ctx, lhs);
+            compiler.gen(Instruction::Mov(lhs.clone(), value));
+            lhs
+        }
         other => {
             eprintln!("Not implemented: {:?}", other);
             unimplemented!()
@@ -141,6 +148,9 @@ fn compile_statement<'src>(
             let symbol = Symbol::new(name, ty.clone());
             func_ctx.register_local(symbol);
             compiler.gen(Instruction::Mov(func_ctx.lookup(name), value));
+        }
+        Statement::Expr(expr) => {
+            compile_expr(compiler, func_ctx, expr);
         }
     }
 }

@@ -51,6 +51,7 @@ impl Type {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
     Return(Box<Expr>),
+    Expr(Box<Expr>),
     VariableDefinition {
         ty: Type,
         name: String,
