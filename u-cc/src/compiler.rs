@@ -16,12 +16,12 @@ struct Compiler<'src> {
 struct FunctionCtx<'src> {
     // the name of the variable as well as the offset of that var into
     // the stack frame
-    local_variables: HashMap<&'src str, i32>,
+    local_variables: HashMap<&'src str, (i32, Symbol<'src>)>,
     stack_ptr_offset: i32,
 }
 
 impl<'src> FunctionCtx<'src> {
-    fn new(definition: &'src FunctionDefinition) -> Self {
+    fn new() -> Self {
         FunctionCtx {
             local_variables: Default::default(),
             stack_ptr_offset: 0,
@@ -29,14 +29,20 @@ impl<'src> FunctionCtx<'src> {
     }
     fn lookup(&self, name: &str) -> Address {
         assert!(self.local_variables.get(name).is_some());
-        let offset = *self.local_variables.get(name).unwrap();
-        IndirectAddress::offset(Box::new(Rbp.into()), offset).into()
+        let (offset, ref symbol) = *self.local_variables.get(name).unwrap();
+        let addr = IndirectAddress::offset(Box::new(Rbp.into()), offset);
+        let addr = match symbol.type_of().stack_size() {
+            4 => addr.dword(),
+            8 => addr.qword(),
+            n => panic!("Unknown stack size: {}", n),
+        };
+        addr.into()
     }
     fn register_local(&mut self, symbol: Symbol<'src>) {
         debug_assert!(self.local_variables.get(symbol.name()).is_none());
         self.stack_ptr_offset -= symbol.type_of().stack_size() as i32;
         self.local_variables
-            .insert(symbol.name(), self.stack_ptr_offset);
+            .insert(symbol.name(), (self.stack_ptr_offset, symbol));
     }
     fn register_temp(&mut self) -> Address {
         self.stack_ptr_offset -= Type::Int.stack_size() as i32;
@@ -65,7 +71,7 @@ fn func_parameter_register(number: usize) -> Address {
     match number {
         0 => Edi.into(),
         1 => Esi.into(),
-        _ => unimplemented!()
+        _ => unimplemented!(),
     }
 }
 
@@ -73,8 +79,15 @@ fn compile_expr(compiler: &mut Compiler, func_ctx: &mut FunctionCtx, expr: &Expr
     match expr {
         Expr::Number(val) => Address::Immediate(*val),
         Expr::Ident(ident) => func_ctx.lookup(ident),
+        Expr::AddressOf(ident) => {
+            let (offset, _) = func_ctx.local_variables.get(ident.as_str()).unwrap();
+            compiler.gen(Instruction::Lea(
+                Rax.into(),
+                IndirectAddress::offset(Box::new(Rbp.into()), *offset).into(),
+            ));
+            Rax.into()
+        }
         Expr::FunctionCall(call) => {
-            let func = compiler.symbol_table.lookup_symbol(&call.name).unwrap();
             for (i, arg) in call.arguments.iter().enumerate() {
                 let addr = compile_expr(compiler, func_ctx, arg);
                 let register = func_parameter_register(i);
@@ -84,9 +97,9 @@ fn compile_expr(compiler: &mut Compiler, func_ctx: &mut FunctionCtx, expr: &Expr
             Eax.into()
         }
         Expr::Op(lhs, op, rhs) => {
-            use ast::Opcode;
+            use ast::BinaryOp;
             match op {
-                Opcode::Add => {
+                BinaryOp::Add => {
                     let lhs = compile_expr(compiler, func_ctx, lhs);
                     let rhs = compile_expr(compiler, func_ctx, rhs);
                     let temp = func_ctx.register_temp();
@@ -99,14 +112,35 @@ fn compile_expr(compiler: &mut Compiler, func_ctx: &mut FunctionCtx, expr: &Expr
                 _ => unimplemented!(),
             }
         }
+        Expr::Dereference(expr) => {
+            let addr = compile_expr(compiler, func_ctx, expr);
+            compiler.gen(Instruction::Mov(Rax.into(), addr));
+            IndirectAddress::indirect(Box::new(Rax.into()))
+                .dword()
+                .into()
+        }
+        other => {
+            eprintln!("Not implemented: {:?}", other);
+            unimplemented!()
+        }
     }
 }
 
-fn compile_statement(compiler: &mut Compiler, func_ctx: &mut FunctionCtx, stmt: &Statement) {
+fn compile_statement<'src>(
+    compiler: &mut Compiler<'src>,
+    func_ctx: &mut FunctionCtx<'src>,
+    stmt: &'src Statement,
+) {
     match stmt {
         Statement::Return(expr) => {
             let ret_address = compile_expr(compiler, func_ctx, expr);
             compiler.gen(Instruction::Mov(Eax.into(), ret_address));
+        }
+        Statement::VariableDefinition { ty, name, value } => {
+            let value = compile_expr(compiler, func_ctx, value);
+            let symbol = Symbol::new(name, ty.clone());
+            func_ctx.register_local(symbol);
+            compiler.gen(Instruction::Mov(func_ctx.lookup(name), value));
         }
     }
 }
@@ -119,7 +153,7 @@ fn compile_func<'src>(compiler: &mut Compiler<'src>, func: &'src FunctionDefinit
     let symbol = Symbol::new(func.name.as_str(), func.type_of());
     compiler.symbol_table.insert_symbol(symbol);
     compiler.symbol_table.push_scope();
-    let mut func_ctx = FunctionCtx::new(func);
+    let mut func_ctx = FunctionCtx::new();
 
     compiler
         // name the function
@@ -128,6 +162,7 @@ fn compile_func<'src>(compiler: &mut Compiler<'src>, func: &'src FunctionDefinit
         .gen(Instruction::Push(Rbp))
         // set frame pointer to stack pointer (so we can alloc stack space)
         .gen(Instruction::Mov(Rbp.into(), Rsp.into()));
+
     for (i, param) in func.parameters.iter().enumerate() {
         let symbol = Symbol::new(param.name.as_ref(), param.ty.clone());
         func_ctx.register_local(symbol.clone());

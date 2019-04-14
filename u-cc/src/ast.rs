@@ -33,6 +33,7 @@ pub enum Type {
         return_type: Box<Type>,
         arguments: Vec<Type>,
     },
+    Pointer(Box<Type>),
 }
 
 impl Type {
@@ -41,7 +42,8 @@ impl Type {
         match self {
             // ok I mean this is probably the worst way to do this but whatever.
             Type::Int => 4,
-            Type::Function { .. } => 4,
+            Type::Function { .. } => 0,
+            Type::Pointer(_) => 8,
         }
     }
 }
@@ -49,22 +51,102 @@ impl Type {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
     Return(Box<Expr>),
+    VariableDefinition {
+        ty: Type,
+        name: String,
+        value: Box<Expr>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
+    /// 1
     Number(i32),
+    /// a
     Ident(String),
+    /// &a
+    AddressOf(String),
+    /// *a
+    Dereference(Box<Expr>),
+    /// a()
     FunctionCall(FunctionCall),
-    Op(Box<Expr>, Opcode, Box<Expr>),
+    /// a + b
+    Op(Box<Expr>, BinaryOp, Box<Expr>),
+    /// a++
+    PostIncrement(Box<Expr>),
+    /// a--
+    PostDecrement(Box<Expr>),
+    /// a->b
+    ArrowProperty(Box<Expr>, String),
+    /// a.b
+    DotProperty(Box<Expr>, String),
+    /// sizeof a+b
+    SizeofExpr(Box<Expr>),
+    /// sizeof(int)
+    SizeofType(Type),
+
+    /// !a
+    Not(Box<Expr>),
+    /// +a
+    Plus(Box<Expr>),
+
+    /// -a
+    Neg(Box<Expr>),
+    /// ++a
+    PrefixIncrement(Box<Expr>),
+    /// --a
+    PrefixDecrement(Box<Expr>),
+    /// (long)a
+    Cast(Type, Box<Expr>),
+    /// true ? a : b
+    Ternary {
+        cond: Box<Expr>,
+        truthy: Box<Expr>,
+        falsey: Box<Expr>,
+    },
+    /// a = b
+    Assignment {
+        lhs: Box<Expr>,
+        op: AssignmentOp,
+        value: Box<Expr>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Opcode {
+pub enum AssignmentOp {
+    Assign,
+    MulAssign,
+    DivAssign,
+    ModAssign,
+    AddAssign,
+    SubAssign,
+    LeftShiftAssign,
+    RightShiftAssign,
+    AndAssign,
+    XorAssign,
+    OrAssign,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum BinaryOp {
     Mul,
     Div,
     Add,
     Sub,
+    Mod,
+    LeftShift,
+    RightShift,
+    Equal,
+    NotEqual,
+    LessThan,
+    GreaterThan,
+    LessThanEqual,
+    GreaterThanEqual,
+    BitAnd,
+    BitXor,
+    BitOr,
+    And,
+    Or,
 }
 
 #[derive(Debug, Clone, PartialEq)]

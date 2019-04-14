@@ -3,6 +3,7 @@ use std::fmt::{self, Display};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Register {
+    Rax,
     Rbp,
     Rsp,
     Eax,
@@ -19,6 +20,7 @@ impl Display for Register {
             f,
             "{}",
             match self {
+                Rax => "rax",
                 Rbp => "rbp",
                 Rsp => "rsp",
                 Eax => "eax",
@@ -64,24 +66,62 @@ impl From<IndirectAddress> for Address {
 pub struct IndirectAddress {
     name: Box<Address>,
     offset: Option<i32>,
+    size: Option<IndirectSize>,
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum IndirectSize {
+    Dword,
+    Qword
+}
+
+impl Display for IndirectSize {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", match self {
+            IndirectSize::Dword => "dword",
+            IndirectSize::Qword => "qword"
+        })
+    }
+}
+
 impl IndirectAddress {
     pub fn offset(name: Box<Address>, offset: i32) -> IndirectAddress {
         IndirectAddress {
             name,
             offset: Some(offset),
+            size: None,
         }
     }
     pub fn indirect(name: Box<Address>) -> IndirectAddress {
-        IndirectAddress { name, offset: None }
+        IndirectAddress { name, offset: None, size: None }
+    }
+    pub fn dword(mut self) -> IndirectAddress {
+        self.size = Some(IndirectSize::Dword);
+        self
+    }
+    pub fn qword(mut self) -> IndirectAddress {
+        self.size = Some(IndirectSize::Qword);
+        self
+    }
+    pub fn no_size(mut self) -> IndirectAddress {
+        self.size = None;
+        self
     }
 }
 
 impl Display for IndirectAddress {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.offset {
-            Some(offset) => write!(f, "[{} {}]", self.name, offset),
-            None => write!(f, "[{}]", self.name),
+        match (self.offset, &self.size) {
+            (Some(offset), Some(size)) => {
+                write!(f, "{} [{} {}]", size, self.name, offset)
+            },
+            (Some(offset), None) => {
+                write!(f, "[{} {}]", self.name, offset)
+            }
+            (None, Some(size)) => {
+                write!(f, "{} [{}]", size, self.name)
+            }
+            (None, None) => write!(f, "[{}]", self.name),
         }
     }
 }
@@ -94,6 +134,8 @@ pub enum Instruction {
     Mov(Address, Address),
     // dest, adder
     Add(Address, Address),
+    // load effective address
+    Lea(Address, Address),
     /// label
     Call(String),
 
@@ -108,6 +150,7 @@ impl Display for Instruction {
             Instruction::Push(reg) => write!(f, "push {}", reg),
             Instruction::Mov(src, dest) => write!(f, "mov {}, {}", src, dest),
             Instruction::Add(src, dest) => write!(f, "add {}, {}", src, dest),
+            Instruction::Lea(src, dest) => write!(f, "lea {}, {}", src, dest),
             Instruction::Call(label) => write!(f, "call {}", label),
             Instruction::Pop(reg) => write!(f, "pop {}", reg),
             Instruction::Ret => write!(f, "ret"),

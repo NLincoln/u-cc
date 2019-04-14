@@ -20,8 +20,7 @@ fn main() {
     let ast = match c::ProgramParser::new().parse(&input_str) {
         Ok(program) => program,
         Err(err) => {
-            println!("{}", err);
-            return;
+            panic!("{}", err);
         }
     };
 

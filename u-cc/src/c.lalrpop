@@ -36,36 +36,128 @@ FunctionParameter: FunctionParameter = {
 }
 
 Statement: Statement = {
-  "return" <Expr> ";" => Statement::Return(<>)
+  "return" <Expr> ";" => Statement::Return(<>),
+  <ty:Type> <name:Ident> "=" <value:Expr> ";" => Statement::VariableDefinition { ty, name, value },
 }
 
 Expr: Box<Expr> = {
-  Expr ExprOp Factor => Box::new(Expr::Op(<>)),
-  Factor,
+  AssignmentExpr,
 }
 
-ExprOp: Opcode = {
-    "+" => Opcode::Add,
-    "-" => Opcode::Sub,
-};
+AssignmentExpr: Box<Expr> = {
+  ConditionalExpr,
+  <lhs:UnaryExpr> <op:AssignmentOp> <value:AssignmentExpr> => Expr::Assignment { lhs, op, value }.into()
+}
 
-Factor: Box<Expr> = {
-    Factor FactorOp Term => Box::new(Expr::Op(<>)),
-    Term,
-};
+AssignmentOp: AssignmentOp = {
+  "=" => AssignmentOp::Assign,
+  "*=" => AssignmentOp::MulAssign,
+  "/=" => AssignmentOp::DivAssign,
+  "%=" => AssignmentOp::ModAssign,
+  "+=" => AssignmentOp::AddAssign,
+  "-=" => AssignmentOp::SubAssign,
+  "<<=" => AssignmentOp::LeftShiftAssign,
+  ">>=" => AssignmentOp::RightShiftAssign,
+  "&=" => AssignmentOp::AndAssign,
+  "^=" => AssignmentOp::XorAssign,
+  "|=" => AssignmentOp::OrAssign,
+}
 
-FactorOp: Opcode = {
-    "*" => Opcode::Mul,
-    "/" => Opcode::Div,
-};
+ConditionalExpr: Box<Expr> = {
+  LogicalOrExpr,
+  <cond:LogicalOrExpr> "?" <truthy:Expr> ":" <falsey:ConditionalExpr> => Expr::Ternary { cond, truthy, falsey }.into()
+}
 
-Term: Box<Expr> = {
-   Num => Box::new(Expr::Number(<>)),
-   Ident => Box::new(Expr::Ident(<>)),
-   FunctionCall => Box::new(Expr::FunctionCall(<>)),
+LogicalOrExpr: Box<Expr> = {
+  LogicalAndExpr,
+  <lhs:LogicalOrExpr> "||" <rhs:LogicalAndExpr> => Expr::Op(lhs, BinaryOp::Or, rhs).into(),
+}
 
-   "(" <Expr> ")"
-};
+LogicalAndExpr: Box<Expr> = {
+  InclusiveOrExpr,
+  <lhs:LogicalAndExpr> "&&" <rhs:InclusiveOrExpr> => Expr::Op(lhs, BinaryOp::And, rhs).into(),
+}
+
+InclusiveOrExpr: Box<Expr> = {
+  ExclusiveOrExpr,
+  <lhs:InclusiveOrExpr> "|" <rhs:ExclusiveOrExpr> => Expr::Op(lhs, BinaryOp::BitOr, rhs).into(),
+}
+
+ExclusiveOrExpr: Box<Expr> = {
+  AndExpr,
+  <lhs:ExclusiveOrExpr> "^" <rhs:AndExpr> => Expr::Op(lhs, BinaryOp::BitXor, rhs).into(),
+}
+
+AndExpr: Box<Expr> = {
+  EqualityExpr,
+  <lhs:AndExpr> "&" <rhs:EqualityExpr> => Expr::Op(lhs, BinaryOp::BitAnd, rhs).into()
+}
+
+EqualityExpr: Box<Expr> = {
+  RelationalExpr,
+  <lhs:EqualityExpr> "==" <rhs:RelationalExpr> => Expr::Op(lhs, BinaryOp::Equal, rhs).into(),
+  <lhs:EqualityExpr> "!=" <rhs:RelationalExpr> => Expr::Op(lhs, BinaryOp::NotEqual, rhs).into(),
+}
+
+RelationalExpr: Box<Expr> = {
+  ShiftExpr,
+  <lhs:RelationalExpr> "<" <rhs:ShiftExpr> => Expr::Op(lhs, BinaryOp::LessThan, rhs).into(),
+  <lhs:RelationalExpr> ">" <rhs:ShiftExpr> => Expr::Op(lhs, BinaryOp::GreaterThan, rhs).into(),
+  <lhs:RelationalExpr> "<=" <rhs:ShiftExpr> => Expr::Op(lhs, BinaryOp::LessThanEqual, rhs).into(),
+  <lhs:RelationalExpr> ">=" <rhs:ShiftExpr> => Expr::Op(lhs, BinaryOp::GreaterThanEqual, rhs).into(),
+}
+
+ShiftExpr: Box<Expr> = {
+  AdditiveExpr,
+  <lhs:ShiftExpr> "<<" <rhs:AdditiveExpr> => Expr::Op(lhs, BinaryOp::LeftShift, rhs).into(),
+  <lhs:ShiftExpr> ">>" <rhs:AdditiveExpr> => Expr::Op(lhs, BinaryOp::RightShift, rhs).into(),
+}
+
+AdditiveExpr: Box<Expr> = {
+  MultiplicativeExpr,
+  <lhs:AdditiveExpr> "+" <rhs:MultiplicativeExpr> => Expr::Op(lhs, BinaryOp::Add, rhs).into(),
+  <lhs:AdditiveExpr> "-" <rhs:MultiplicativeExpr> => Expr::Op(lhs, BinaryOp::Sub, rhs).into(),
+}
+
+MultiplicativeExpr: Box<Expr> = {
+  CastExpr,
+  <lhs:MultiplicativeExpr> "*" <rhs:CastExpr> => Expr::Op(lhs, BinaryOp::Mul, rhs).into(),
+  <lhs:MultiplicativeExpr> "/" <rhs:CastExpr> => Expr::Op(lhs, BinaryOp::Div, rhs).into(),
+  <lhs:MultiplicativeExpr> "%" <rhs:CastExpr> => Expr::Op(lhs, BinaryOp::Mod, rhs).into(),
+}
+
+CastExpr: Box<Expr> = {
+  UnaryExpr,
+  "(" <ty:Type> ")" <expr:CastExpr> => Expr::Cast(ty, expr).into()
+}
+
+UnaryExpr: Box<Expr> = {
+  PostfixExpr,
+  "++" <UnaryExpr> => Expr::PrefixIncrement(<>).into(),
+  "--" <UnaryExpr> => Expr::PrefixDecrement(<>).into(),
+  "&" <Ident> => Expr::AddressOf(<>).into(),
+  "*" <CastExpr> => Expr::Dereference(<>).into(),
+  "!" <CastExpr> => Expr::Not(<>).into(),
+  "+" <CastExpr> => Expr::Plus(<>).into(),
+  "-" <CastExpr> => Expr::Neg(<>).into(),
+  "sizeof" <UnaryExpr> => Expr::SizeofExpr(<>).into(),
+  "sizeof" "(" <Type> ")" => Expr::SizeofType(<>).into(),
+}
+
+PostfixExpr: Box<Expr> = {
+  PrimaryExpr,
+  FunctionCall => Expr::FunctionCall(<>).into(),
+  <expr:PostfixExpr> "." <ident:Ident> => Expr::DotProperty(expr, ident).into(),
+  <expr:PostfixExpr> "->" <ident:Ident> => Expr::ArrowProperty(expr, ident).into(),
+  <PostfixExpr> "++" => Expr::PostIncrement(<>).into(),
+  <PostfixExpr> "--" => Expr::PostDecrement(<>).into(),
+}
+
+PrimaryExpr: Box<Expr> = {
+  Ident => Expr::Ident(<>).into(),
+  Num => Expr::Number(<>).into(),
+  "(" <Expr> ")"
+}
 
 FunctionCall: FunctionCall = {
   <name:Ident> "(" <arguments:Comma<Expr>> ")" => {
@@ -77,7 +169,8 @@ FunctionCall: FunctionCall = {
 }
 
 Type: Type = {
-  "int" => Type::Int
+  "int" => Type::Int,
+  <Type> "*" => Type::Pointer(Box::new(<>)),
 }
 
 Ident: String = {
