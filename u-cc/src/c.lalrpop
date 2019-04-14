@@ -39,11 +39,33 @@ Statement: Statement = {
   "return" <Expr> ";" => Statement::Return(<>)
 }
 
-Expr: Expr = {
-  Num => Expr::Number(<>),
-  Ident => Expr::Ident(<>),
-  FunctionCall => Expr::FunctionCall(<>)
+Expr: Box<Expr> = {
+  Expr ExprOp Factor => Box::new(Expr::Op(<>)),
+  Factor,
 }
+
+ExprOp: Opcode = {
+    "+" => Opcode::Add,
+    "-" => Opcode::Sub,
+};
+
+Factor: Box<Expr> = {
+    Factor FactorOp Term => Box::new(Expr::Op(<>)),
+    Term,
+};
+
+FactorOp: Opcode = {
+    "*" => Opcode::Mul,
+    "/" => Opcode::Div,
+};
+
+Term: Box<Expr> = {
+   Num => Box::new(Expr::Number(<>)),
+   Ident => Box::new(Expr::Ident(<>)),
+   FunctionCall => Box::new(Expr::FunctionCall(<>)),
+
+   "(" <Expr> ")"
+};
 
 FunctionCall: FunctionCall = {
   <name:Ident> "(" <arguments:Comma<Expr>> ")" => {
