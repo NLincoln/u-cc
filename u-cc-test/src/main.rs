@@ -1,6 +1,6 @@
 use colored::*;
 use std::path::{Path, PathBuf};
-use std::{env, fs, io};
+use std::{fs, io};
 
 fn workdir() -> io::Result<PathBuf> {
     let pid = std::process::id();
@@ -19,6 +19,7 @@ struct TestCase {
 enum TestResult {
     Passed,
     WrongStatusCode { expected: i32, received: i32 },
+    WrongStdout { expected: String, received: String },
 }
 
 #[cfg(target_os = "linux")]
@@ -92,10 +93,12 @@ impl TestCase {
     }
     fn link_obj_file(&self) -> io::Result<()> {
         let cmd = duct::cmd!(
-            "gcc",
-            self.obj_file_path()?,
+            "ld",
             "-o",
-            self.executable_file_path()?
+            self.executable_file_path()?,
+            "-lc",
+            "/usr/lib/crt1.o",
+            self.obj_file_path()?,
         );
         cmd.run()?;
         Ok(())
@@ -108,8 +111,7 @@ impl TestCase {
 
         let status_code = {
             let output = duct::cmd!(self.executable_file_path()?).unchecked().run()?;
-
-            output.status.code().unwrap()
+            dbg!(output).status.code().unwrap()
         };
         let expected_status = self.run_gcc()?;
         if status_code != expected_status {
@@ -155,6 +157,12 @@ fn main() -> io::Result<()> {
             }
             TestResult::WrongStatusCode { expected, received } => println!(
                 "{} Expected {}, Received {}",
+                "[FAILED]".red(),
+                expected,
+                received
+            ),
+            TestResult::WrongStdout { expected, received } => println!(
+                "{} Expected:\n{}\nReceived:\n{}\n",
                 "[FAILED]".red(),
                 expected,
                 received

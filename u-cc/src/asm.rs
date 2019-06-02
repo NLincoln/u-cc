@@ -1,4 +1,3 @@
-use crate::asm::Address::Indirect;
 use std::fmt::{self, Display};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -36,6 +35,7 @@ impl Display for Register {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Address {
     Register(Register),
+    Label(String),
     Immediate(i32),
     Indirect(IndirectAddress),
 }
@@ -44,6 +44,7 @@ impl Display for Address {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Address::Immediate(val) => Display::fmt(val, f),
+            Address::Label(val) => Display::fmt(val, f),
             Address::Register(reg) => Display::fmt(reg, f),
             Address::Indirect(indirect) => Display::fmt(indirect, f),
         }
@@ -67,20 +68,25 @@ pub struct IndirectAddress {
     name: Box<Address>,
     offset: Option<i32>,
     size: Option<IndirectSize>,
+    is_rip_relative: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum IndirectSize {
     Dword,
-    Qword
+    Qword,
 }
 
 impl Display for IndirectSize {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", match self {
-            IndirectSize::Dword => "dword",
-            IndirectSize::Qword => "qword"
-        })
+        write!(
+            f,
+            "{}",
+            match self {
+                IndirectSize::Dword => "dword",
+                IndirectSize::Qword => "qword",
+            }
+        )
     }
 }
 
@@ -90,10 +96,16 @@ impl IndirectAddress {
             name,
             offset: Some(offset),
             size: None,
+            is_rip_relative: false,
         }
     }
     pub fn indirect(name: Box<Address>) -> IndirectAddress {
-        IndirectAddress { name, offset: None, size: None }
+        IndirectAddress {
+            name,
+            offset: None,
+            size: None,
+            is_rip_relative: false,
+        }
     }
     pub fn dword(mut self) -> IndirectAddress {
         self.size = Some(IndirectSize::Dword);
@@ -107,22 +119,27 @@ impl IndirectAddress {
         self.size = None;
         self
     }
+    pub fn is_rip_relative(mut self, y: bool) -> IndirectAddress {
+        self.is_rip_relative = y;
+        self
+    }
 }
 
 impl Display for IndirectAddress {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match (self.offset, &self.size) {
-            (Some(offset), Some(size)) => {
-                write!(f, "{} [{} {}]", size, self.name, offset)
-            },
-            (Some(offset), None) => {
-                write!(f, "[{} {}]", self.name, offset)
-            }
-            (None, Some(size)) => {
-                write!(f, "{} [{}]", size, self.name)
-            }
-            (None, None) => write!(f, "[{}]", self.name),
+        if let Some(size) = &self.size {
+            write!(f, "{} ", size)?;
         }
+        write!(f, "[")?;
+        if self.is_rip_relative {
+            write!(f, "rel ")?;
+        }
+        write!(f, "{}", self.name)?;
+        if let Some(offset) = self.offset {
+            write!(f, " {}", offset)?;
+        }
+        write!(f, "]")?;
+        Ok(())
     }
 }
 
@@ -138,7 +155,6 @@ pub enum Instruction {
     Lea(Address, Address),
     /// label
     Call(String),
-
     Pop(Register),
     Ret,
 }

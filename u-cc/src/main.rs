@@ -7,7 +7,7 @@ mod platform;
 lalrpop_mod!(pub c);
 
 use clap::{App, Arg};
-use std::{fs, io};
+use std::fs;
 
 fn main() {
     let matches = App::new("u-cc")
@@ -24,10 +24,15 @@ fn main() {
         }
     };
 
-    let instructions = compiler::compile(&ast);
+    let output = compiler::compile(&ast);
     println!("global {}", platform::main_symbol());
+    println!("extern _printf");
+    println!("section .data");
+    for (i, literal) in output.string_literals().iter().enumerate() {
+        println!("LC{}: db \"{}\"", i, literal);
+    }
     println!("section .text");
-    for instruction in instructions.iter() {
+    for instruction in output.instructions().iter() {
         println!("{}", instruction);
     }
 }

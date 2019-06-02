@@ -21,14 +21,25 @@ pub Program: Program = {
 }
 
 FunctionDefinition: FunctionDefinition = {
-  <return_type:Type> <name:Ident> "(" <parameters:Comma<FunctionParameter>> ")" "{" <body:Statement*> "}" => {
+  <fsc:FunctionStorageClass?> <return_type:Type> <name:Ident> "(" <parameters:Comma<FunctionParameter>> ")" <body:FunctionBody> => {
     FunctionDefinition {
       return_type,
       name,
       parameters,
-      body
+      body,
+      storage_class: fsc
     }
   }
+}
+
+FunctionBody: Option<Vec<Statement>> = {
+  "{" <Statement*> "}" => Some(<>),
+  ";" => None
+}
+
+FunctionStorageClass: FunctionStorageClass = {
+  "static" => FunctionStorageClass::Static,
+  "extern" => FunctionStorageClass::Extern,
 }
 
 FunctionParameter: FunctionParameter = {
@@ -157,6 +168,7 @@ PostfixExpr: Box<Expr> = {
 PrimaryExpr: Box<Expr> = {
   Ident => Expr::Ident(<>).into(),
   Num => Expr::Number(<>).into(),
+  RawString => Expr::RawString(<>).into(),
   "(" <Expr> ")"
 }
 
@@ -181,3 +193,7 @@ Ident: String = {
 Num: i32 = {
   r"[0-9]+" => i32::from_str(<>).unwrap()
 };
+
+RawString: String = {
+  <x:r#""(([^\\"]|\\.)*)""#> => x[1..(x.len() - 1)].to_string(),
+}

@@ -4,6 +4,12 @@ pub struct Program {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum FunctionStorageClass {
+    Extern,
+    Static,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct FunctionParameter {
     pub ty: Type,
     pub name: String,
@@ -14,7 +20,8 @@ pub struct FunctionDefinition {
     pub return_type: Type,
     pub name: String,
     pub parameters: Vec<FunctionParameter>,
-    pub body: Vec<Statement>,
+    pub storage_class: Option<FunctionStorageClass>,
+    pub body: Option<Vec<Statement>>,
 }
 
 impl FunctionDefinition {
@@ -38,7 +45,6 @@ pub enum Type {
 
 impl Type {
     pub fn stack_size(&self) -> usize {
-        use std::usize;
         match self {
             // ok I mean this is probably the worst way to do this but whatever.
             Type::Int => 4,
@@ -65,6 +71,8 @@ pub enum Expr {
     Number(i32),
     /// a
     Ident(String),
+    /// "a"
+    RawString(String),
     /// &a
     AddressOf(String),
     /// *a

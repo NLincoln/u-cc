@@ -1,6 +1,4 @@
-use crate::asm::Address::Indirect;
 use crate::asm::{Address, IndirectAddress, Instruction, Register::*};
-use crate::ast::Expr::FunctionCall;
 use crate::ast::{self, Expr, FunctionDefinition, Program, Statement, Type};
 use crate::compiler::symbol_table::Symbol;
 use crate::platform;
@@ -8,8 +6,9 @@ use std::collections::HashMap;
 
 mod symbol_table;
 
-struct Compiler<'src> {
+pub struct Compiler<'src> {
     instructions: Vec<Instruction>,
+    string_literals: Vec<String>,
     symbol_table: symbol_table::SymbolTable<'src>,
 }
 
@@ -54,8 +53,22 @@ impl<'src> Compiler<'src> {
     pub fn new() -> Self {
         Compiler {
             instructions: vec![],
+            string_literals: vec![],
             symbol_table: Default::default(),
         }
+    }
+
+    pub fn string_literals(&self) -> &[String] {
+        &self.string_literals
+    }
+
+    pub fn instructions(&self) -> &[Instruction] {
+        &self.instructions
+    }
+
+    pub fn register_literal(&mut self, literal: String) -> String {
+        self.string_literals.push(literal);
+        return format!("LC{}", self.string_literals.len() - 1);
     }
 
     pub fn gen(&mut self, instruction: Instruction) -> &mut Self {
@@ -126,6 +139,12 @@ fn compile_expr(compiler: &mut Compiler, func_ctx: &mut FunctionCtx, expr: &Expr
             compiler.gen(Instruction::Mov(lhs.clone(), value));
             lhs
         }
+        Expr::RawString(literal) => {
+            let label = compiler.register_literal(literal.clone());
+            IndirectAddress::indirect(Address::Label(label).into())
+                .is_rip_relative(true)
+                .into()
+        }
         other => {
             eprintln!("Not implemented: {:?}", other);
             unimplemented!()
@@ -156,6 +175,10 @@ fn compile_statement<'src>(
 }
 
 fn compile_func<'src>(compiler: &mut Compiler<'src>, func: &'src FunctionDefinition) {
+    let body = match func.body {
+        Some(ref statements) => statements,
+        None => return,
+    };
     let name = match func.name.as_str() {
         "main" => platform::main_symbol().to_string(),
         name => name.to_string(),
@@ -179,14 +202,14 @@ fn compile_func<'src>(compiler: &mut Compiler<'src>, func: &'src FunctionDefinit
         let register = func_parameter_register(i);
         compiler.gen(Instruction::Mov(func_ctx.lookup(symbol.name()), register));
     }
-    for stmt in func.body.iter() {
+    for stmt in body.iter() {
         compile_statement(compiler, &mut func_ctx, &stmt);
     }
     compiler.gen(Instruction::Pop(Rbp)).gen(Instruction::Ret);
     compiler.symbol_table.pop_scope();
 }
 
-pub fn compile(program: &Program) -> Vec<Instruction> {
+pub fn compile(program: &Program) -> Compiler {
     let mut compiler = Compiler::new();
     compiler.symbol_table.push_scope();
     for func in program.functions.iter() {
@@ -194,5 +217,5 @@ pub fn compile(program: &Program) -> Vec<Instruction> {
     }
     compiler.symbol_table.pop_scope();
 
-    compiler.instructions
+    compiler
 }
