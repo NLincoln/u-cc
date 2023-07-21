@@ -7,7 +7,7 @@ build = "build.rs"
 
 [dependencies]
 lalrpop-util = "0.16.3"
-regex = "1.1"
+regex = "1.9"
 clap = "2.32"
 
 [build-dependencies]
